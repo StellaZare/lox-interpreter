@@ -3,6 +3,7 @@ package craftinginterpreters.lox;
 import static craftinginterpreters.lox.TokenType.*;
 
 import java.util.List;
+import java.util.ArrayList;
 
 /**
  * Parses the tokens into an expression
@@ -26,12 +27,12 @@ public class Parser {
      * Syntax error handling is the parser's responsibility, so we catch any exceptions
      * When an error occurs, we return null and call the error() in Lox.java
      */
-    Expr parse() {
-        try {
-            return expression();
-        } catch (ParseError error) {
-            return null;
+    List<Stmt> parse() {
+        List<Stmt> statements = new ArrayList<>();
+        while (!isAtEnd()) {
+            statements.add(statement());
         }
+        return statements;
     }
 
     /**
@@ -39,6 +40,27 @@ public class Parser {
      */
     private Expr expression() {
         return equality();
+    }
+
+    /**
+     * Parses a statement
+     * @return
+     */
+    private Stmt statement() {
+        if (match(PRINT)) return printStatement();
+        return expressionStatement();
+    }
+
+    private Stmt printStatement() {
+        Expr value = expression();
+        consume(SEMICOLON, "Expect ';' after value.");
+        return new Stmt.Print(value);
+    }
+
+    private Stmt expressionStatement() {
+        Expr expr = expression();
+        consume(SEMICOLON, "Expect ';' after expression.");
+        return new Stmt.Expression(expr);
     }
 
     /**
