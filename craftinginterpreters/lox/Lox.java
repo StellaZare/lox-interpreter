@@ -85,12 +85,15 @@ public class Lox {
     /**
      * Dispatch a syntaxt error from the scanner at a given line
      */
-    static void error(int line, String msg) {
+    static void error(Token token, String msg) {
         if (token.type == TokenType.EOF) {
-            report(line, " at end", msg);
+            report(token.line, " at end", msg);
         } else {
-            report(line, " at '" + token.lexeme + "'", msg);
+            report(token.line, " at '" + token.lexeme + "'", msg);
         }
+    }
+    static void error(int line, String msg) {
+        report(line, "", msg);
     }
 
     private static void report(int line, String loc, String msg) {
