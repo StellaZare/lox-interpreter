@@ -30,9 +30,38 @@ public class Parser {
     List<Stmt> parse() {
         List<Stmt> statements = new ArrayList<>();
         while (!isAtEnd()) {
-            statements.add(statement());
+            statements.add(declaration());
         }
         return statements;
+    }
+
+    /**
+     * declaration -> varDecl | statement ;
+     */
+    private Stmt declaration() {
+        try {
+            if (match(VAR)) return varDeclaration();
+            // otherwise, parse a statement
+            return statement();
+        } catch (ParseError error) {
+            // If there is a parse error, synchronize the parser
+            synchronize();
+            return null;
+        }
+    }
+
+    /**
+     * varDecl -> "var" IDENTIFIER ( "=" expression )? ";" ;
+     * Note: "var" already consumed bu declaration()
+     */
+    private Stmt varDeclaration() {
+        Token name = consume(IDENTIFIER, "Expect variable name.");
+        Expr initializer = null;
+        if (match(EQUAL)) {
+            initializer = expression();
+        }
+        consume(SEMICOLON, "Expect ';' after variable declaration.");
+        return new Stmt.Var(name, initializer);
     }
 
     /**
@@ -43,7 +72,7 @@ public class Parser {
     }
 
     /**
-     * Parses a statement
+     * statement -> exprStmt | printStmt ;
      * @return
      */
     private Stmt statement() {
@@ -133,7 +162,7 @@ public class Parser {
     }
 
     /**
-     * primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")"
+     * primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER
      */
     private Expr primary() {
         if (match(FALSE)) return new Expr.Literal(false);
@@ -142,6 +171,10 @@ public class Parser {
 
         if (match(NUMBER, STRING)) {
             return new Expr.Literal(previous().literal);
+        }
+
+        if (match(IDENTIFIER)) {
+            return new Expr.Variable(previous());
         }
 
         if (match(LEFT_PAREN)) {
