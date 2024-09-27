@@ -1,18 +1,21 @@
 package craftinginterpreters.lox;
 
+import java.util.List;
+
 /**
  * This class is a visitor that interprets the expression
  * The return type of the visitor is Object
  */
-class Interpreter implements Expr.Visitor<Object> {
+class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     /**
      * The interpreter's public API
      */
-    void interpret(Expr expression) {
+    void interpret(List<Stmt> statements) {
         try {
-            Object value = evaluate(expression);
-            System.out.println(stringify(value));
+            for(Stmt statement : statements) {
+                execute(statement);
+            }
         } catch (RuntimeError error) {
             Lox.runtimeError(error);
         }
@@ -23,6 +26,29 @@ class Interpreter implements Expr.Visitor<Object> {
      */
     private Object evaluate(Expr expr) {
         return expr.accept(this);
+    }
+
+    private void execute(Stmt stmt) {
+        stmt.accept(this);
+    }
+
+    /**
+     * Evaluate the statement
+     */
+    @Override
+    public Void visitExpressionStmt(Stmt.Expression stmt) {
+        evaluate(stmt.expression);
+        return null;
+    }
+
+    /**
+     * Evaluate the print statement
+     */
+    @Override
+    public Void visitPrintStmt(Stmt.Print stmt) {
+        Object value = evaluate(stmt.expression);
+        System.out.println(stringify(value));
+        return null;
     }
     
     /**
