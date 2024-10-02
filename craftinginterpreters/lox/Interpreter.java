@@ -5,8 +5,21 @@ import java.util.List;
 /**
  * This class is a visitor that interprets the expression
  * The return type of the visitor is Object
+ * 
+ * program -> declaration* EOF ;
+ * 
+ * declaration -> varDecl | statement ;
+ * 
+ * varDecl -> "var" IDENTIFIER ( "=" expression )? ";" ;
+ * statement -> exprStmt | printStmt ;
+ * 
+ * exprStmt -> expression ";" ;
+ * printStmt -> "print" expression ";" ;
+ * 
  */
 class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
+
+    private Environment environment = new Environment();
 
     /**
      * The interpreter's public API
@@ -22,14 +35,43 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
 
     /**
-     * Helper method sents the inner expression to the visitor implementation
+     * Invokes the visitor for the provided Expr subclass
+     * i.e. Binary, Grouping, Literal, ...
      */
     private Object evaluate(Expr expr) {
         return expr.accept(this);
     }
 
+    /**
+     * Invokes the visitor for the provided Stmt subclass
+     * i.e. Expression, Print, Var
+     */
     private void execute(Stmt stmt) {
         stmt.accept(this);
+    }
+
+    /**
+     * Evaluate the block
+     */
+    @Override
+    public Void visitBlockStmt(Stmt.Block stmt) {
+        executeBlock(stmt.statements, new Environment(environment));
+        return null;
+    }
+
+    void executeBlock(List<Stmt> statements, Environment environment) {
+        // Save the outer block environment
+        Environment previous = this.environment;
+        try {
+            // Replace with current block environment
+            this.environment = environment;
+            for (Stmt s : statements) {
+                execute(s);
+            }
+        } finally {
+            // Reset outer block environment
+            this.environment = previous;
+        }
     }
 
     /**
@@ -50,9 +92,35 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         System.out.println(stringify(value));
         return null;
     }
-    
+
     /**
-     * Convert the syntaxt tree node literal to a runtime value
+     * Evaluate statements declaring a variable
+     */
+    @Override
+    public Void visitVarStmt(Stmt.Var stmt) {
+        Object value = null;
+        if (stmt.initializer != null) {
+            // An expression was provided at initilization
+            value = evaluate(stmt.initializer);
+        }
+
+        environment.define(stmt.name.lexeme, value);
+        return null;
+    }
+    
+
+    /**
+     * Evaluate assignment expresions
+     */
+    @Override
+    public Object visitAssignExpr(Expr.Assign expr) {
+        Object value = evaluate(expr.value);
+        environment.assign(expr.name, expr.value);
+        return value;
+    }
+
+    /**
+     * Convert the literal to a runtime value
      */
     @Override
     public Object visitLiteralExpr(Expr.Literal expr) {
@@ -60,7 +128,7 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
 
     /**
-     * Convert the syntax tree grouping node to a runtime value
+     * Convert grouping node to a runtime value
      * 
      * The grouping node is a wrapper around another expression,
      * To evaluate the grouping expression, we evaluate inner expression recursively 
@@ -69,6 +137,7 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     public Object visitGroupingExpr(Expr.Grouping expr) {
         return evaluate(expr.expression);
     }
+
     /**
      * Convert the unary expression to a runtime value
      * Evaluate the operand and apply the unary operator to the result
@@ -88,6 +157,15 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
         // Unreachable
         return null;
+    }
+
+    /**
+     * Evaluate the variable expression
+     * @throws RuntimeError if the variable is not found
+     */
+    @Override
+    public Object visitVariableExpr(Expr.Variable expr) {
+        return environment.get(expr.name);
     }
 
     /**
