@@ -5,17 +5,6 @@ import java.util.List;
 /**
  * This class is a visitor that interprets the expression
  * The return type of the visitor is Object
- * 
- * program -> declaration* EOF ;
- * 
- * declaration -> varDecl | statement ;
- * 
- * varDecl -> "var" IDENTIFIER ( "=" expression )? ";" ;
- * statement -> exprStmt | printStmt ;
- * 
- * exprStmt -> expression ";" ;
- * printStmt -> "print" expression ";" ;
- * 
  */
 class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
@@ -51,6 +40,40 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
 
     /**
+     * Evaluate statements declaring a variable
+     */
+    @Override
+    public Void visitVarStmt(Stmt.Var stmt) {
+        Object value = null;
+        if (stmt.initializer != null) {
+            // An expression was provided at initilization
+            value = evaluate(stmt.initializer);
+        }
+
+        environment.define(stmt.name.lexeme, value);
+        return null;
+    }
+
+    /**
+     * Evaluate the statement
+     */
+    @Override
+    public Void visitExpressionStmt(Stmt.Expression stmt) {
+        evaluate(stmt.expression);
+        return null;
+    }
+
+    /**
+     * Evaluate the print statement
+     */
+    @Override
+    public Void visitPrintStmt(Stmt.Print stmt) {
+        Object value = evaluate(stmt.expression);
+        System.out.println(stringify(value));
+        return null;
+    }
+
+    /**
      * Evaluate the block
      */
     @Override
@@ -75,40 +98,29 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
 
     /**
-     * Evaluate the statement
+     * Evaluates the conditional
      */
     @Override
-    public Void visitExpressionStmt(Stmt.Expression stmt) {
-        evaluate(stmt.expression);
-        return null;
-    }
-
-    /**
-     * Evaluate the print statement
-     */
-    @Override
-    public Void visitPrintStmt(Stmt.Print stmt) {
-        Object value = evaluate(stmt.expression);
-        System.out.println(stringify(value));
-        return null;
-    }
-
-    /**
-     * Evaluate statements declaring a variable
-     */
-    @Override
-    public Void visitVarStmt(Stmt.Var stmt) {
-        Object value = null;
-        if (stmt.initializer != null) {
-            // An expression was provided at initilization
-            value = evaluate(stmt.initializer);
+    public Void visitIfStmt(Stmt.If stmt) {
+        if (isTruthy(evaluate(stmt.condition))){
+            execute(stmt.thenBranch);
+        } else if (stmt.elseBranch != null) {
+            execute(stmt.elseBranch);
         }
+        return null;
+    }
 
-        environment.define(stmt.name.lexeme, value);
+    /**
+     * Evaluate the while loop
+     */
+    @Override
+    public Void visitWhileStmt(Stmt.While stmt) {
+        while (isTruthy(evaluate(stmt.condition))) {
+            execute(stmt.body);
+        }
         return null;
     }
     
-
     /**
      * Evaluate assignment expresions
      */
@@ -125,6 +137,23 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     @Override
     public Object visitLiteralExpr(Expr.Literal expr) {
         return expr.value;
+    }
+
+    @Override
+    public Object visitLogicalExpr(Expr.Logical expr) {
+        Object left = evaluate(expr.left);
+
+        if (expr.operator.type == TokenType.OR) {
+            // true OR anything is true
+            if (isTruthy(left)) return left;
+        } else {
+            // false AND anything is false
+            if (!isTruthy(left)) return left;
+        }
+
+        // false OR x is x
+        // true AND x is x
+        return evaluate(expr.right);
     }
 
     /**
