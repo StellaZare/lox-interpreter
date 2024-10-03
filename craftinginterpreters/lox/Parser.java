@@ -36,7 +36,7 @@ public class Parser {
     }
 
     /**
-     * declaration -> varDecl | statement ;
+     * declaration -> varDecl | statement
      */
     private Stmt declaration() {
         try {
@@ -51,7 +51,7 @@ public class Parser {
     }
 
     /**
-     * varDecl -> "var" IDENTIFIER ( "=" expression )? ";" ;
+     * varDecl -> "var" IDENTIFIER ( "=" expression )? ";"
      * Note: "var" already consumed bu declaration()
      */
     private Stmt varDeclaration() {
@@ -65,33 +65,33 @@ public class Parser {
     }
 
     /**
-     * expression -> equality
-     */
-    private Expr expression() {
-        return equality();
-    }
-
-    /**
-     * statement -> exprStmt | printStmt ;
-     * @return
+     * statement -> exprStmt | printStmt | block | ifStmt | whileStmt | forStmt
      */
     private Stmt statement() {
+        if (match(IF)) return ifStatement();
         if (match(PRINT)) return printStatement();
+        if (match(WHILE)) return whileStatement();
         if (match(LEFT_BRACE)) return new Stmt.Block(block());
 
         return expressionStatement();
     }
 
-    private Stmt printStatement() {
-        Expr value = expression();
-        consume(SEMICOLON, "Expect ';' after value.");
-        return new Stmt.Print(value);
-    }
-
+    /**
+     * exprStmt -> expression ";"
+     */
     private Stmt expressionStatement() {
         Expr expr = expression();
         consume(SEMICOLON, "Expect ';' after expression.");
         return new Stmt.Expression(expr);
+    }
+
+    /**
+     * printStmt -> "print" expression ";"
+     */
+    private Stmt printStatement() {
+        Expr value = expression();
+        consume(SEMICOLON, "Expect ';' after value.");
+        return new Stmt.Print(value);
     }
 
     /**
@@ -107,12 +107,48 @@ public class Parser {
         consume(RIGHT_BRACE, "Expect '}' after block.");
         return statements;
     }
+    
+    /**
+     * ifStmt -> "if" "(" expression ")" statement ("else" statement)?
+     */
+    private Stmt ifStatement() {
+        consume(LEFT_PAREN, "Expect '(' after 'if'.");
+        Expr condition = expression();
+        consume(RIGHT_PAREN, "Expect ')' after if condition.");
+
+        Stmt thenBranch = statement();
+        Stmt elseBranch = null;
+
+        if (match(ELSE)) elseBranch = statement();
+
+        return new Stmt.If(condition, thenBranch, elseBranch);
+    }
 
     /**
-     * Parse variable assignment 
+     * whileStmt -> "while" "(" expression ")" statement
+     */
+    private Stmt whileStatement() {
+        consume(LEFT_PAREN, "Expect '(' after 'while'.");
+        Expr condition = expression();
+        consume(RIGHT_PAREN, "Expect ')' after while condition.");
+        Stmt body = statement();
+
+        return new Stmt.While(condition, body);
+    }
+
+    /**
+     * expression -> assignment
+     */
+    private Expr expression() {
+        return equality();
+    }
+
+
+    /**
+     * assignment -> IDENTIFIER "=" assignment | logic_or
      */
     private Expr assignment() {
-        Expr expr = equality();
+        Expr expr = or();
 
         if (match(EQUAL)) {
             Token equals = previous();
@@ -124,6 +160,36 @@ public class Parser {
             }
 
             error(equals, "Invalid assignment target.");
+        }
+
+        return expr;
+    }
+
+    /**
+     * logical_or -> logical_and ( "or" logical_and )*
+     */
+    private Expr or() {
+        Expr expr = and();
+
+        while (match(OR)) {
+            Token operator = previous();
+            Expr right = and();
+            expr = new Expr.Logical(expr, operator, right);
+        }
+
+        return expr;
+    }
+
+    /**
+     * logical_and -> equality ( "and" equality )*
+     */
+    private Expr and() {
+        Expr expr = equality();
+
+        while (match(AND)) {
+            Token operator = previous();
+            Expr right = equality();
+            expr = new Expr.Logical(expr, operator, right);
         }
 
         return expr;
